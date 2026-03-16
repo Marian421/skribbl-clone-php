@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: scribble_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scribble
+      POSTGRES_USER: scribble
+      POSTGRES_PASSWORD: scribble
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - scribble_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scribble -d scribble"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  core-api:
+    build:
+      context: ./apps/core-api
+      dockerfile: Dockerfile
+    container_name: scribble_core_api
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./apps/core-api:/var/www/html
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: 1
+      DATABASE_URL: "postgresql://scribble:scribble@postgres:5432/scribble?serverVersion=16&charset=utf8"
+    command: sh -c "composer install && php -S 0.0.0.0:8000 -t public"
+    networks:
+      - scribble_network
+
+volumes:
+  postgres_data:
+
+networks:
+  scribble_network:
+    driver: bridge
